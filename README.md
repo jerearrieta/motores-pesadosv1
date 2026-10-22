@@ -2,12 +2,6 @@
 
 Esta guía explica cómo usar la página paso a paso. Está pensada para alguien que la usa por primera vez y no necesita saber nada técnico.
 
-**Dirección de la página:** https://motores-pesadosv1.vercel.app
-
-> **Es un ambiente de prueba.** Todos los datos son inventados y las facturas no tienen validez fiscal: no se mandan a ARCA. Podés practicar tranquilo, con una sola precaución: lo que emitís o confirmás no se puede borrar, aunque sí corregir (ver más abajo).
-
----
-
 ## Contenido
 
 1. [Para qué sirve](#1-para-qué-sirve)
