@@ -1,442 +1,366 @@
-# Motores Pesados · Prototipo 1.0
+# Manual de uso · Facturación e IVA de Motores Pesados
 
-Módulo de facturación e IVA para el CRM de Motores Pesados. Cubre dos empresas: **MP** (Mecánica Pesada) y **RMP** (Rectificaciones Motores Pesados). Permite:
+Esta guía explica cómo usar la página paso a paso. Está pensada para alguien que la usa por primera vez y no necesita saber nada técnico.
 
-- emitir facturas de venta y sus notas de crédito y débito;
-- cargar las facturas de compra que mandan los proveedores, con su imagen;
-- ver los **dos libros de IVA** (ventas y compras), la **posición de IVA** del mes y **cerrar el período**;
-- exportar todo a Excel.
+**Dirección de la página:** https://motores-pesadosv1.vercel.app
 
-## Índice
-
-1. [Cómo está armado](#1-cómo-está-armado)
-2. [Estructura del repo](#2-estructura-del-repo)
-3. [Server: la base de datos](#3-server-la-base-de-datos)
-4. [Cómo se calcula una factura](#4-cómo-se-calcula-una-factura)
-5. [Ciclo de vida de los comprobantes](#5-ciclo-de-vida-de-los-comprobantes)
-6. [Reglas que hace cumplir la base](#6-reglas-que-hace-cumplir-la-base)
-7. [La API (funciones RPC)](#7-la-api-funciones-rpc)
-8. [Roles y permisos](#8-roles-y-permisos)
-9. [Client: la app Next.js](#9-client-la-app-nextjs)
-10. [Recorrido de una factura de punta a punta](#10-recorrido-de-una-factura-de-punta-a-punta)
-11. [Puesta en marcha](#11-puesta-en-marcha)
-12. [Pruebas](#12-pruebas)
-13. [Fuera de esta versión](#13-fuera-de-esta-versión)
-14. [Glosario](#14-glosario)
+> **Es un ambiente de prueba.** Todos los datos son inventados y las facturas no tienen validez fiscal: no se mandan a ARCA. Podés practicar tranquilo, con una sola precaución: lo que emitís o confirmás no se puede borrar, aunque sí corregir (ver más abajo).
 
 ---
 
-## 1. Cómo está armado
+## Contenido
 
-```mermaid
-flowchart LR
-  U[Navegador] -->|páginas| V[Vercel<br/>client/ · Next.js]
-  U -->|supabase.rpc| A[Supabase API<br/>PostgREST]
-  U -->|subir / ver imagen| S[Supabase Storage<br/>bucket comprobantes]
-  A --> PUB
-  subgraph PG[Postgres]
-    direction TB
-    PUB[esquema public<br/>funciones RPC]
-    FIS[esquema fiscal<br/>tablas, cálculo, reglas]
-    PUB --> FIS
-  end
-```
+1. [Para qué sirve](#1-para-qué-sirve)
+2. [Conocé la pantalla](#2-conocé-la-pantalla)
+3. [Los roles: quién puede hacer qué](#3-los-roles-quién-puede-hacer-qué)
+4. [Dar de alta un cliente o un proveedor](#4-dar-de-alta-un-cliente-o-un-proveedor)
+5. [Hacer una factura de venta](#5-hacer-una-factura-de-venta)
+6. [Corregir una factura de venta: notas de crédito y débito](#6-corregir-una-factura-de-venta-notas-de-crédito-y-débito)
+7. [Cargar una factura de compra](#7-cargar-una-factura-de-compra)
+8. [Anular una factura de compra](#8-anular-una-factura-de-compra)
+9. [Ver los libros de IVA y cuánto hay que pagar](#9-ver-los-libros-de-iva-y-cuánto-hay-que-pagar)
+10. [Exportar a Excel](#10-exportar-a-excel)
+11. [Cerrar el mes](#11-cerrar-el-mes)
+12. [Ver el historial de cambios](#12-ver-el-historial-de-cambios)
+13. [Mensajes que te puede mostrar la página](#13-mensajes-que-te-puede-mostrar-la-página)
+14. [Preguntas frecuentes](#14-preguntas-frecuentes)
+15. [Ejercicio de práctica](#15-ejercicio-de-práctica)
+16. [Palabras que conviene conocer](#16-palabras-que-conviene-conocer)
 
-Hay dos partes, cada una en su carpeta:
+---
 
-| Parte | Dónde corre | Qué hace |
+## 1. Para qué sirve
+
+La página reúne en un solo lugar todo lo que tiene que ver con las facturas y el IVA de las dos empresas: **Mecánica Pesada** y **Rectificaciones Motores Pesados**. Con ella podés:
+
+- **Hacer facturas de venta** a los clientes y corregirlas si hace falta.
+- **Cargar las facturas de compra** que mandan los proveedores, con su foto o PDF.
+- **Ver los libros de IVA** de ventas y de compras de cada mes.
+- **Saber cuánto IVA hay que pagar** en el mes.
+- **Exportar todo a Excel** y **cerrar el mes** cuando está todo controlado.
+
+La página hace las cuentas sola: el IVA, los totales y el número de factura. Vos solo cargás los datos.
+
+---
+
+## 2. Conocé la pantalla
+
+Al entrar vas a ver tres zonas:
+
+**Arriba, una franja de aviso** que dice *AMBIENTE DE PRUEBA*. Te recuerda que nada de lo que hagas tiene validez fiscal.
+
+**A la izquierda, el menú**, con tres grupos:
+
+| Grupo | Opción | Qué encontrás |
 |---|---|---|
-| **`client/`** | Vercel | Pantallas en Next.js. Muestra datos y manda lo que la persona escribe. **No calcula nada que se guarde.** |
-| **`server/`** | Supabase | Migraciones SQL: tablas, cálculo fiscal, reglas y la API. Toda la lógica de negocio vive acá. |
+| Libro de IVA | **Libros y posición** | Los libros del mes y cuánto IVA hay que pagar |
+| | **Cierre e historial** | Cerrar el mes y ver todo lo que se hizo |
+| Facturas | **Facturas de venta** | Las facturas que hacemos a los clientes |
+| | **Facturas de compra** | Las facturas que nos hacen los proveedores |
+| Datos | **Clientes** | Los datos de cada cliente para poder facturarle |
+| | **Proveedores** | Los datos de cada proveedor |
 
-La decisión de fondo es que **la lógica está en la base**, no en el front:
+En el celular, el menú se abre con el botón ☰ que está arriba a la derecha.
 
-- El IVA, los totales, la letra de la factura, el número y los permisos los resuelve Postgres dentro de funciones.
-- Si mañana se cambia el front (por ejemplo, para integrarlo al CRM real), las reglas siguen valiendo, porque nadie puede saltearlas desde el navegador.
-- El front llama a la base con `supabase.rpc('nombre_funcion', {...})` y Supabase traduce esa llamada en un `select nombre_funcion(...)`.
+**Abajo del menú**, dos cosas:
+- **Claro / Oscuro** cambia los colores de la pantalla.
+- **Usuario de prueba**, con una lista para elegir el **rol**. El rol define qué podés hacer (ver la sección 3).
 
-### Por qué dos esquemas
+**Arriba a la derecha de cada pantalla** aparecen dos botones: **Mecánica Pesada** y **Rectificaciones Motores Pesados**. Con ellos elegís con qué empresa estás trabajando. Las dos empresas nunca se mezclan: cada una tiene sus propias facturas y sus propios libros.
 
-- **`fiscal`** guarda las tablas y las funciones internas. Supabase **no lo expone** por la API, así que desde el navegador no se puede leer ni escribir ninguna tabla directamente.
-- **`public`** tiene solo las funciones de la API. Son `SECURITY DEFINER`: corren con permisos del dueño de la base, validan rol y reglas, y recién ahí tocan `fiscal`.
-
-Así, la única puerta de entrada a los datos son las funciones, y cada una controla lo que deja hacer.
-
----
-
-## 2. Estructura del repo
-
-```
-client/                         App Next.js (lo que ve la persona)
-  app/                          Una carpeta por pantalla (App Router)
-    libro/                      Libros de IVA de ventas y compras + posición
-    ventas/  ventas/nueva/  ventas/[id]/
-    compras/ compras/nueva/ compras/[id]/
-    clientes/  proveedores/
-    cierre/                     Cierre de período + historial
-    layout.tsx  page.tsx  globals.css
-  components/                   Shell (menú, rol, tema), ui, Papel (factura impresa), Contrapartes
-  lib/
-    supabase.ts                 Cliente de Supabase (URL + anon key)
-    api.ts                      Tipos y una función por RPC
-    contexto.tsx                Estado global: empresa, rol, catálogos, avisos
-    formato.ts                  Pesos, fechas, montos en letras
-    exportar.ts                 Excel con exceljs
-  .env.example
-
-server/
-  supabase/
-    config.toml
-    migrations/
-      20261022000001_esquema_fiscal.sql      Tablas
-      20261022000002_reglas_y_calculo.sql    Catálogos, cálculo, triggers, ayudas
-      20261022000003_api.sql                 Funciones RPC + permisos
-      20261022000004_storage.sql             Bucket de imágenes
-      20261022000005_datos_base.sql          Las dos empresas (ficticias)
-      20261022000006_datos_ejemplo.sql       Facturas de ejemplo del Simulador
-  tests/
-    correr.sh                   Crea una base temporal, migra y prueba
-    stub_supabase.sql           Imita lo mínimo de Supabase en un Postgres común
-    pruebas.sql                 73 pruebas
-```
+> 💡 Antes de hacer cualquier cosa, fijate que esté elegida la empresa correcta y el rol correcto.
 
 ---
 
-## 3. Server: la base de datos
+## 3. Los roles: quién puede hacer qué
 
-### Tablas (esquema `fiscal`)
+Cada persona de la empresa tiene un rol, y cada rol puede hacer ciertas cosas. En esta versión de prueba no hay usuario ni contraseña: el rol lo elegís vos abajo a la izquierda, para poder probar cómo trabaja cada uno.
 
-```mermaid
-erDiagram
-  empresa ||--o{ punto_venta : tiene
-  punto_venta ||--o{ numerador : numera
-  empresa ||--o{ comprobante : emite_o_recibe
-  contraparte ||--o{ comprobante : cliente_o_proveedor
-  comprobante ||--o{ comprobante_linea : items
-  comprobante ||--o{ comprobante_iva : desglose
-  comprobante ||--o{ comprobante : "nota sobre factura"
-  empresa ||--o{ periodo_iva : cierra
-  tipo_comprobante ||--o{ comprobante : tipo
-  alicuota ||--o{ comprobante_iva : alicuota
-```
-
-| Tabla | Para qué |
-|---|---|
-| `condicion_iva`, `tipo_comprobante`, `alicuota`, `tipo_documento` | Catálogos con los códigos de ARCA. `condicion_iva.letra_venta` dice qué letra le corresponde a cada cliente. `tipo_comprobante.signo` vale −1 en las notas de crédito para que resten en el libro. |
-| `rol`, `permiso` | Los 5 roles y qué acción puede hacer cada uno. |
-| `empresa` | MP y RMP, con CUIT, domicilio y leyenda de la factura. |
-| `punto_venta` | Puntos de venta de cada empresa. |
-| `numerador` | Último número usado por empresa, punto de venta y tipo. Garantiza numeración sin huecos. |
-| `contraparte` | **Clientes y proveedores en una sola tabla** (`es_cliente` / `es_proveedor`), con sus datos fiscales. |
-| `comprobante` | **Ventas y compras en la misma tabla** (`operacion` = `venta` o `compra`). Tiene la cabecera, los importes y una *foto* de los datos del cliente o proveedor al momento de emitir, para que la factura no cambie si después se edita el cliente. |
-| `comprobante_linea` | Ítems de una venta: cantidad, precio, descuento, alícuota e importe. |
-| `comprobante_iva` | Desglose por alícuota (base e IVA). Es lo que leen los libros. |
-| `periodo_iva` | Meses cerrados por empresa. |
-| `historial` | Registro de todo lo que se hizo. Solo altas. |
-| `idempotencia` | Respuestas guardadas para que un reintento no emita dos veces. |
-
-**Importes:** siempre `numeric(14,2)`, nunca `float`. Así no hay errores de redondeo de centavos. Hay un `check` (`total_cierra`) que obliga a que el total sea exactamente la suma de sus partes.
-
-### Qué hay en cada migración
-
-1. **`…01_esquema_fiscal.sql`**: crea el esquema `fiscal`, todas las tablas, los índices únicos (no repetir número de venta, no cargar dos veces la misma compra) y le quita el acceso a todo el mundo.
-2. **`…02_reglas_y_calculo.sql`**: carga los catálogos y los permisos. Define:
-   - las funciones de cálculo (`calcular_venta`, `calcular_compra`, `desglosar`, `calcular_iva`);
-   - las validaciones (`cuit_valido` con dígito verificador, `documento_valido`);
-   - los **triggers de inmutabilidad**;
-   - las ayudas que usa la API: `exigir` (permisos), `registrar` (historial), `siguiente_numero`, `exigir_periodo_abierto` e idempotencia.
-3. **`…03_api.sql`**: las funciones públicas que llama el front (ver [sección 7](#7-la-api-funciones-rpc)) y los `grant` para que el rol `anon` las pueda ejecutar.
-4. **`…04_storage.sql`**: bucket privado `comprobantes`. Acepta PNG, JPG, WEBP y PDF de hasta 10 MB. Se puede subir y ver, pero no reemplazar ni borrar.
-5. **`…05_datos_base.sql`**: las dos empresas con CUIT de prueba.
-6. **`…06_datos_ejemplo.sql`**: clientes, proveedores y las facturas del Simulador. Se cargan llamando a las mismas funciones que usa el front, así que también prueban las reglas.
-
-### Errores de negocio
-
-Cuando una regla no se cumple, la función corta con `fiscal.error(codigo, detalle, campo)`:
-
-- **`message`** lleva el código, por ejemplo `PERIODO_CERRADO`.
-- **`detail`** lleva el texto para la persona, por ejemplo "El período 2026-10 está cerrado…".
-- **`hint`** lleva el campo del formulario que hay que marcar.
-- El SQLSTATE es `PT409`, `PT422`, `PT403` o `PT404`. PostgREST lo devuelve como ese código HTTP.
-
-En el client, `lib/api.ts` convierte eso en un `ErrorNegocio` y la pantalla muestra el detalle junto al campo.
-
----
-
-## 4. Cómo se calcula una factura
-
-El cálculo existe **una sola vez**, en `fiscal.calcular_venta` y `fiscal.calcular_compra`. Mientras la persona carga, el client pide una **vista previa** con `calcular_comprobante`, que no guarda nada. Al guardar, el server **vuelve a calcular** con los mismos datos. El front nunca manda totales.
-
-**Venta (por línea):**
-```
-precio unitario = redondear(precio lista × (100 − descuento) ÷ 100, 4 decimales)
-importe neto    = redondear(cantidad × precio unitario, 2 decimales)
-```
-
-**IVA:** se agrupa por alícuota y se calcula **sobre la suma de los netos**, no línea por línea:
-```
-IVA de la alícuota = redondear(suma de netos × % ÷ 100, 2)
-```
-El redondeo es *mitad hacia arriba*: `round()` de Postgres sobre `numeric`.
-
-**Precio final (Factura B de mostrador):** se carga el total con IVA incluido. El neto se obtiene como `redondear(total × 100 ÷ (100 + %), 2)` y el IVA es la diferencia, así el total impreso es exactamente el que se cobró.
-
-**Total:**
-```
-total = neto gravado + no gravado + exento + IVA + otros tributos + percepción IVA + percepción IIBB
-```
-
-**Compra:** se copia lo que dice el papel del proveedor: base por alícuota, no gravado, exento y percepciones. Si es una Factura **B o C**, no se discrimina IVA: el sistema rechaza que se cargue IVA, porque no da crédito fiscal.
-
-**Libros y posición:**
-- Cada fila del libro sale de `comprobante_iva` repartido en columnas por alícuota (21 %, 10,5 %, 27 %, otras, 0 %), con el signo del tipo: **las notas de crédito restan**.
-- Entran al libro las ventas emitidas o autorizadas y las compras confirmadas. Los borradores y las anuladas quedan afuera.
-- **Posición = débito fiscal (IVA de ventas) − crédito fiscal (IVA de compras).** Las percepciones se muestran aparte, solo como información.
-
----
-
-## 5. Ciclo de vida de los comprobantes
-
-**Ventas**
-```mermaid
-stateDiagram-v2
-  [*] --> borrador: guardar_venta(emitir=false)
-  borrador --> borrador: se edita
-  borrador --> [*]: eliminar_borrador
-  borrador --> emitido_sin_cae: guardar_venta(emitir=true)<br/>se asigna número
-  emitido_sin_cae --> autorizado: (futuro) llega el CAE de ARCA
-```
-
-**Compras**
-```mermaid
-stateDiagram-v2
-  [*] --> borrador: guardar_compra(confirmar=false)
-  borrador --> borrador: se edita
-  borrador --> [*]: eliminar_borrador
-  borrador --> confirmada: guardar_compra(confirmar=true)<br/>requiere imagen o CAE
-  confirmada --> anulada: anular_compra (solo Contador, con motivo)
-```
-
-- Una venta emitida **no se edita ni se borra**: se corrige con una **nota de crédito o débito** asociada (`emitir_nota_venta`). Las notas de crédito no pueden superar el total que queda disponible de la factura.
-- Una compra confirmada no se edita. Si estaba mal, se **anula con motivo** y se carga de nuevo.
-
----
-
-## 6. Reglas que hace cumplir la base
-
-Estas reglas no dependen del front: aunque alguien llame a la API a mano, se cumplen igual.
-
-| # | Regla | Dónde se aplica |
-|---|---|---|
-| 1 | Todo comprobante tiene empresa; MP y RMP nunca se mezclan en un libro. | Columna obligatoria + filtros de `libro_filas` |
-| 2 | Lo emitido o confirmado **no se edita ni se borra**. Solo se permiten dos pasos: confirmada → anulada y emitida → autorizada. | Trigger `t_inmutable` en `comprobante`, `comprobante_linea` y `comprobante_iva` |
-| 3 | La numeración de ventas la pone la base al emitir, **sin huecos**. | `siguiente_numero` con `SELECT … FOR UPDATE` sobre `numerador` |
-| 4 | La letra sale de la condición de IVA del cliente: A para responsables inscriptos y monotributistas, B para consumidor final y exentos. | `guardar_venta` lee `condicion_iva.letra_venta` |
-| 5 | Una compra no se carga dos veces, y para confirmarla hace falta imagen o CAE. | Índice único `uq_compra_numero` + validación en `guardar_compra` |
-| 6 | Un período cerrado bloquea emitir, cargar y anular con fecha de ese mes. | `exigir_periodo_abierto` |
-| 7 | Todo queda en el historial, y el historial es solo de altas. | `registrar` + trigger en `historial` |
-| 8 | Cada acción la puede hacer solo el rol que corresponde. | `exigir(rol, accion)` contra la tabla `permiso` |
-
-Además:
-- Se valida el CUIT con su dígito verificador.
-- Una Factura B a consumidor final desde $ 10.000.000 exige identificar al cliente (RG 5866).
-- Emitir y confirmar usan **idempotencia**: el client manda una clave única, y si la misma llamada llega dos veces (doble clic o reintento de red) se devuelve el mismo resultado sin emitir otra factura.
-
----
-
-## 7. La API (funciones RPC)
-
-Todas están en `public` y se llaman con `supabase.rpc(nombre, parámetros)`. Las que escriben reciben `p_rol`, porque en esta versión no hay login.
-
-**Lecturas**
-
-| Función | Devuelve |
-|---|---|
-| `catalogos()` | Empresas, puntos de venta, tipos, condiciones, alícuotas, roles y permisos |
-| `listar_contrapartes(p_tipo)` | Clientes o proveedores, con qué dato fiscal les falta |
-| `listar_comprobantes(p_empresa, p_operacion, p_periodo)` | Lista de ventas o de compras |
-| `obtener_comprobante(p_id)` | Un comprobante completo: ítems, desglose, notas asociadas y saldo para notas de crédito |
-| `calcular_comprobante(p_datos)` | Vista previa de importes, sin guardar |
-| `libro_iva(p_empresa, p_periodo, p_operacion)` | Filas y totales del libro de ventas o de compras |
-| `posicion_iva(p_empresa, p_periodo)` | Débito, crédito, saldo y percepciones |
-| `periodos_iva(p_empresa)` | Meses con movimiento y su posición |
-| `pendientes_cierre(p_empresa, p_periodo)` | Lo que hay que revisar antes de cerrar |
-| `exportar_facturas(p_empresa, p_periodo)` | Filas con las columnas de la hoja «Facturas» del Excel |
-| `ver_historial(p_rol, p_empresa)` | Historial de cambios |
-
-**Escrituras**
-
-| Función | Hace |
-|---|---|
-| `guardar_contraparte(p_rol, p_datos)` | Alta o edición de un cliente o proveedor |
-| `guardar_venta(p_rol, p_datos, p_emitir, p_clave)` | Guarda el borrador y, si `p_emitir`, lo emite con número |
-| `emitir_nota_venta(p_rol, p_datos, p_clave)` | Nota de crédito o débito sobre una factura emitida |
-| `guardar_compra(p_rol, p_datos, p_confirmar, p_clave)` | Guarda y, si `p_confirmar`, confirma una compra |
-| `anular_compra(p_rol, p_id, p_motivo)` | Anula una compra confirmada |
-| `eliminar_borrador(p_rol, p_id)` | Borra un borrador (lo único que se puede borrar) |
-| `cerrar_periodo(p_rol, p_empresa, p_periodo)` | Cierra el mes |
-
-Ejemplo de llamada desde el client (`lib/api.ts`):
-```ts
-const factura = await api.guardarVenta('administracion', {
-  empresa_id: 'MP', punto_venta: 1, contraparte_id: '…', fecha: '2026-10-22',
-  lineas: [{ descripcion: 'Rectificación', cantidad: '1', precio: '100000', alicuota_codigo: 5 }],
-}, true); // true = emitir
-```
-
----
-
-## 8. Roles y permisos
-
-No hay login todavía: el rol se elige abajo a la izquierda en la app y viaja como parámetro `p_rol`. Los permisos están en la tabla `fiscal.permiso`.
-
-| Acción | Administración | Contador | Gerencia | Adm. técnico | Estudiante |
+| Quiero… | Administración | Contador | Gerencia | Adm. técnico | Estudiante |
 |---|:-:|:-:|:-:|:-:|:-:|
-| Datos fiscales de clientes y proveedores | ✓ | ✓ | | ✓ | |
-| Emitir facturas y notas de venta | ✓ | | | | |
-| Cargar y confirmar compras | ✓ | ✓ | | | |
-| Anular compras | | ✓ | | | |
-| Cerrar períodos | | ✓ | | | |
-| Ver historial | | ✓ | ✓ | ✓ | ✓ |
-| Ver libros, comprobantes y exportar | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Ver facturas, libros y exportar a Excel | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Cargar o corregir datos de clientes y proveedores | ✓ | ✓ | | ✓ | |
+| Hacer facturas de venta y notas | ✓ | | | | |
+| Cargar facturas de compra | ✓ | ✓ | | | |
+| Anular una factura de compra | | ✓ | | | |
+| Cerrar el mes | | ✓ | | | |
+| Ver el historial de cambios | | ✓ | ✓ | ✓ | ✓ |
 
-> Como el rol lo elige el navegador, esto **muestra** cómo serían los permisos, pero no es seguridad real. En la versión con login, el rol saldría del token de Supabase Auth y las funciones lo leerían de ahí en lugar de `p_rol`.
+Si intentás algo que tu rol no puede hacer, la página te avisa quién sí lo puede hacer. Por ejemplo: *"Tu rol (Gerencia) no puede emitir facturas de venta. Lo hacen: Administración."*
 
 ---
 
-## 9. Client: la app Next.js
+## 4. Dar de alta un cliente o un proveedor
 
-**Tecnologías:** Next.js 16 (App Router), React 19, TypeScript, `@supabase/supabase-js` y `exceljs`. Sin librerías de UI: el CSS es el del Simulador (`app/globals.css`), con modo claro y oscuro.
+Para facturarle a alguien, primero tiene que estar cargado con sus datos fiscales. Lo mismo pasa con un proveedor antes de cargar una compra suya.
 
-**Pantallas**
+**Rol:** Administración, Contador o Administrador técnico.
 
-| Ruta | Qué muestra |
+1. En el menú, entrá a **Clientes** (o **Proveedores**).
+2. Vas a ver una tarjeta por cada uno. Las tarjetas con **"Faltan datos fiscales"** en rojo no se pueden usar para facturar hasta completarlas.
+3. Para uno nuevo, tocá **Nuevo cliente** (o **Nuevo proveedor**). Para completar uno que ya existe, tocá **Completar datos** o **Editar** en su tarjeta.
+4. Completá:
+   - **Razón social**: el nombre legal.
+   - **Nombre en el CRM**: cómo lo conocemos. Si lo dejás vacío, se usa la razón social.
+   - **Tipo de documento** y **Número**: el CUIT, sin guiones. En los proveedores siempre es CUIT. Para practicar podés usar un CUIT inventado como `30999999979`.
+   - **Condición frente al IVA**: por ejemplo, *Responsable Inscripto* o *Consumidor Final*. Al lado ves qué letra de factura le corresponde.
+   - El domicilio, la localidad y el teléfono son opcionales.
+5. Tocá **Guardar**.
+
+Si el CUIT está mal escrito, la página te lo marca, porque revisa que el número sea válido.
+
+> 💡 La condición frente al IVA es importante: de ella sale si al cliente se le hace **Factura A** o **Factura B**. No la elegís vos en la factura, la pone la página.
+
+---
+
+## 5. Hacer una factura de venta
+
+**Rol:** Administración.
+
+1. En el menú, entrá a **Facturas de venta** y tocá **Nueva factura de venta**.
+2. Arriba completá:
+   - **Cliente**: elegilo de la lista. Si no aparece o tiene datos incompletos, primero cargalo (sección 4).
+   - **Punto de venta** y **Fecha de emisión**: normalmente ya vienen completos.
+   - **Condición de venta**, por ejemplo *Contado* o *Cuenta corriente 30 días*.
+   - Opcionales: **Presupuesto de venta**, **Orden de compra del cliente** y **Remito**.
+3. Elegí cómo vas a cargar los precios:
+   - **Precios sin IVA** es lo normal: cargás el precio de cada cosa y la página le suma el IVA.
+   - **Precio final con IVA (mostrador)** sirve para una venta al público donde ya sabés el total que se cobró. Se carga una sola línea.
+4. Cargá las líneas, una por cada cosa que vendés:
+   - **Código** (opcional) y **Descripción**, por ejemplo *Rectificación de tapa de cilindros*.
+   - **Cantidad**, **Precio de lista (sin IVA)** y **Dto. %** si hacés un descuento.
+   - **Alícuota**: el porcentaje de IVA. Lo normal es 21 %, y algunos servicios llevan 10,5 %.
+   - Para agregar otra línea, tocá **Agregar línea**. Para sacar una, tocá la ✕.
+5. Mientras escribís, a la derecha vas a ver cómo se arma la factura: el neto, el IVA de cada alícuota y el **total**.
+6. Para terminar tenés dos botones:
+   - **Guardar borrador** la guarda para seguir después. Un borrador no tiene número, no cuenta en el libro y se puede cambiar o borrar.
+   - **Emitir** hace la factura definitiva. La página le pone el número que sigue, por ejemplo *Factura A 00001-00000005*, y la suma al libro de ventas.
+
+Después de emitir, se abre la factura tal cual sale en papel. Con **Imprimir** la podés imprimir o guardar como PDF.
+
+> ⚠️ **Una factura emitida ya no se puede cambiar ni borrar.** Así lo exige la ley y así funciona la página. Antes de tocar **Emitir**, revisá el cliente, las cantidades y el total. Si te equivocaste, se corrige con una nota (sección 6).
+
+**Para retomar un borrador:** buscalo en **Facturas de venta** (dice *Borrador*), abrilo y tocá **Editar y emitir**. Si no lo vas a usar, tocá **Borrar borrador**.
+
+En la lista de **Facturas de venta** podés filtrar por **Período** (mes) y por **Estado**:
+- **Borrador**: todavía no se emitió.
+- **Emitida sin CAE**: emitida, pero sin la autorización de ARCA, porque esta versión no se conecta con ARCA.
+- **Autorizada**: ya tiene la autorización de ARCA. En esta versión no se usa.
+
+---
+
+## 6. Corregir una factura de venta: notas de crédito y débito
+
+Una factura emitida no se toca. Si hubo un error o un cambio, se hace una **nota** que la corrige:
+
+- **Nota de crédito**: *resta*. Se usa, por ejemplo, si el cliente devolvió algo, si se cobró de más o si hay que anular la factura entera.
+- **Nota de débito**: *suma*. Se usa, por ejemplo, si faltó cobrar algo o hay un recargo.
+
+**Rol:** Administración.
+
+1. En **Facturas de venta**, abrí la factura que querés corregir.
+2. Tocá **Nota de crédito** o **Nota de débito**.
+3. Completá la **Fecha**, el **Motivo** (es obligatorio, por ejemplo *devolución parcial*) y el **Importe sin IVA** por alícuota. La página calcula el IVA y el total de la nota.
+4. Tocá **Emitir nota**.
+
+La nota queda asociada a la factura y aparece en el detalle, en **Correcciones**. En el libro de ventas, la nota de crédito aparece con importes en negativo.
+
+> Una nota de crédito no puede ser mayor que lo que queda de la factura. Si la factura era de $ 100.000 y ya hiciste una nota de crédito de $ 30.000, la próxima puede ser como mucho de $ 70.000.
+
+---
+
+## 7. Cargar una factura de compra
+
+Las facturas de compra no se "hacen": las hace el proveedor y nosotros las **cargamos** copiando los datos del papel.
+
+**Rol:** Administración o Contador.
+
+1. En el menú, entrá a **Facturas de compra** y tocá **Cargar factura de compra**.
+2. Completá con lo que dice la factura del proveedor:
+   - **Proveedor**: elegilo de la lista. Si no está, tocá *¿No está? Agregalo en Proveedores*.
+   - **Tipo**: Factura A, B o C, o una nota.
+   - **Punto de venta** y **Número**: los del proveedor, por ejemplo `00005` y `00001234`.
+   - **Fecha del comprobante**.
+   - **Período de IVA**: el mes en que se va a contar en el libro. Normalmente es el de la fecha, y se completa solo.
+   - **Vence el pago**, **Orden de compra** y **CAE** son opcionales.
+3. Cargá los importes:
+   - Si es **Factura A**: en **Importe neto por alícuota** poné la base de cada alícuota (21 %, 10,5 %…). Si tiene más de una, tocá **Agregar alícuota**. La página calcula el IVA.
+   - Si es **Factura B o C**: no se discrimina IVA. Cargá todo el importe en **No gravado**.
+   - Si la factura trae **No gravado**, **Exento**, **Percepción de IVA**, **Percepción de Ingresos Brutos** u **Otros tributos**, cargalos en su casilla.
+4. Revisá que el **Total de la factura** que muestra la página sea igual al del papel del proveedor. Si no coincide, revisá lo que cargaste.
+5. En **Imagen o PDF de la factura**, subí la foto o el PDF del comprobante.
+6. Para terminar:
+   - **Guardar borrador** la guarda sin contarla todavía en el libro.
+   - **Confirmar** la cuenta en el libro de compras. Para confirmar hace falta la imagen o el CAE.
+
+> ⚠️ La página no deja cargar dos veces la misma factura del mismo proveedor. Si te aparece *"Esa factura ya está cargada"*, buscala en la lista: seguramente alguien ya la cargó.
+
+> 💡 Solo las **Facturas A** dan *crédito fiscal*, es decir, IVA que se descuenta del que hay que pagar. Las B y las C no.
+
+---
+
+## 8. Anular una factura de compra
+
+Si una compra confirmada estaba mal cargada o no correspondía, no se borra: se **anula**.
+
+**Rol:** Contador.
+
+1. En **Facturas de compra**, abrí la factura.
+2. Tocá **Anular**.
+3. Escribí el **Motivo**, por ejemplo *cargada dos veces* o *importe mal cargado*. Es obligatorio.
+4. Confirmá con **Anular**.
+
+La factura queda en la lista como **Anulada**, con el motivo, y deja de contar en el libro. Si había un error de carga, después podés cargarla de nuevo bien.
+
+---
+
+## 9. Ver los libros de IVA y cuánto hay que pagar
+
+**Rol:** cualquiera.
+
+En el menú, entrá a **Libros y posición**. Arriba vas a ver cuatro recuadros:
+
+- **Débito fiscal**: el IVA de las ventas del mes, lo que cobramos de IVA.
+- **Crédito fiscal**: el IVA de las compras del mes, lo que pagamos de IVA.
+- **IVA a pagar** (o **Saldo a favor**): débito menos crédito.
+- **Estado del período**: *Abierto* si todavía se puede cargar, *Cerrado* si el mes ya se cerró.
+
+Más abajo:
+- **Período**: elegí el mes que querés ver.
+- Tres pestañas:
+  - **Ventas** muestra el libro IVA ventas: una fila por factura emitida, con el neto y el IVA separados por alícuota.
+  - **Compras** muestra el libro IVA compras: una fila por factura confirmada.
+  - **Posición** muestra la cuenta débito − crédito = a pagar, y las percepciones del mes.
+- **Ver todas las columnas** muestra el libro completo, con 27 %, exento, percepciones, etc.
+- Tocando el número de un comprobante se abre su detalle.
+
+Qué entra y qué no en los libros:
+- Entran las ventas **emitidas** y las compras **confirmadas**.
+- **No entran** los borradores ni las compras anuladas.
+- Las **notas de crédito restan**, y por eso aparecen en negativo.
+
+---
+
+## 10. Exportar a Excel
+
+1. En **Libros y posición**, elegí la empresa y el **Período**.
+2. Tocá **Exportar a Excel**.
+
+Se descarga un archivo con cuatro hojas:
+- **Facturas**: todas las facturas del mes, de venta y de compra.
+- **Libro IVA Ventas**.
+- **Libro IVA Compras**.
+- **Posición IVA**.
+
+---
+
+## 11. Cerrar el mes
+
+Cuando el contador terminó de revisar un mes, lo **cierra**. Un mes cerrado queda "congelado": ya no se pueden emitir facturas, cargar compras ni anular con fecha de ese mes.
+
+**Rol:** Contador.
+
+1. En el menú, entrá a **Cierre e historial**.
+2. A la izquierda vas a ver los meses con su saldo y si están **Abierto** o **Cerrado**. Tocá el mes que querés cerrar.
+3. A la derecha aparece **Antes de cerrar**, con una lista de controles. Cada punto tiene un tilde ✓ si está bien, o un aviso con la cantidad de casos a revisar:
+   - facturas de venta que quedaron en borrador;
+   - compras que quedaron en borrador;
+   - compras confirmadas sin imagen.
+4. Revisá esos puntos. Los avisos no impiden cerrar, pero conviene resolverlos. Si algún control **bloquea** el cierre, primero hay que corregirlo.
+5. Tocá **Cerrar período** y confirmá.
+
+> ⚠️ En esta versión, un mes cerrado no se puede volver a abrir. Cerralo solo cuando estés seguro.
+
+---
+
+## 12. Ver el historial de cambios
+
+**Rol:** Contador, Gerencia, Administrador técnico o Estudiante.
+
+En **Cierre e historial**, abajo a la derecha, está el **Historial de cambios**. Ahí aparece todo lo que se hizo: quién (qué rol), cuándo, qué hizo y sobre qué comprobante. Por ejemplo: *"Administración · emitió sin CAE factura de venta Factura A 00001-00000005"*.
+
+El historial no se puede editar ni borrar.
+
+---
+
+## 13. Mensajes que te puede mostrar la página
+
+| Si ves… | Quiere decir | Qué hacer |
+|---|---|---|
+| *Tu rol (…) no puede …* | El rol elegido no tiene permiso para eso | Cambiá el rol abajo a la izquierda al que indica el mensaje |
+| *El cliente «…» no tiene datos fiscales completos* | Falta el CUIT, la razón social o la condición de IVA | Completalo en **Clientes** |
+| *El CUIT tiene que tener 11 dígitos y un dígito verificador correcto* | El CUIT está mal escrito | Revisá el número |
+| *El período … está cerrado* | Ese mes ya se cerró | Usá una fecha de un mes abierto, o consultá con el contador |
+| *Esa factura ya está cargada* | La misma compra ya existe | Buscala en **Facturas de compra** |
+| *Falta la imagen o el PDF de la factura, o su CAE* | No se puede confirmar una compra sin respaldo | Subí la foto o el PDF |
+| *El comprobante ya fue emitido o confirmado y no se puede editar* | Se intentó cambiar algo definitivo | Hacé una nota de crédito o débito, o anulá la compra |
+| *Las notas de crédito de una factura no pueden superar su total* | La nota es más grande que lo que queda de la factura | Revisá el importe |
+| *Una Factura B/C no discrimina IVA computable…* | Cargaste IVA en una factura B o C | Poné todo el importe en **No gravado** |
+| *Desde $ 10.000.000,00 hay que identificar al consumidor final* | Venta grande a un consumidor final sin documento | Cargale CUIT, CUIL o DNI al cliente |
+
+---
+
+## 14. Preguntas frecuentes
+
+**¿Puedo borrar una factura que emití por error?**
+No. Hacé una **nota de crédito** por el total de la factura y queda anulada en los números.
+
+**¿Por qué no puedo elegir si la factura es A o B?**
+Porque depende del cliente: a un Responsable Inscripto se le hace A, a un Consumidor Final se le hace B. La página lo decide sola según la condición de IVA cargada en **Clientes**.
+
+**¿Por qué mi factura no aparece en el libro?**
+Seguramente quedó como **borrador**. Abrila y emitila (venta) o confirmala (compra). También revisá que estés mirando la empresa y el mes correctos.
+
+**¿Qué significa "Emitida sin CAE"?**
+Que la factura está hecha, pero no se mandó a ARCA para autorizarla. En esta versión de prueba eso no se hace.
+
+**¿Puedo trabajar con las dos empresas a la vez?**
+Sí, pero una por vez: elegí la empresa arriba a la derecha. Cada una tiene sus facturas y sus libros por separado.
+
+**Cambié los datos de un cliente. ¿Cambian las facturas viejas?**
+No. Cada factura guarda los datos del cliente tal como estaban el día que se emitió.
+
+**¿Qué pasa si toco "Emitir" dos veces seguidas?**
+Nada: la página emite una sola factura.
+
+---
+
+## 15. Ejercicio de práctica
+
+Para aprender, hacé este recorrido con **Mecánica Pesada**:
+
+1. **Mirá el mes de ejemplo.** En **Libros y posición**, elegí *octubre 2026*. Tenés que ver débito fiscal **$ 214.755,37**, crédito fiscal **$ 107.100,00** e IVA a pagar **$ 107.655,37**.
+2. **Cargá un cliente.** Con rol *Administración*, en **Clientes → Nuevo cliente**, cargá *Cliente de Práctica S.A.*, CUIT `30999999979`, *Responsable Inscripto*.
+3. **Hacé una factura.** En **Facturas de venta → Nueva factura de venta**, elegí ese cliente y cargá una línea: *Servicio de prueba*, cantidad 1, precio 10.000, 21 %. Mirá que el total sea **$ 12.100,00**. Primero tocá **Guardar borrador** y fijate que en el libro todavía no aparece. Después abrila, tocá **Editar y emitir** y **Emitir**.
+4. **Corregila.** Abrí la factura emitida y hacé una **Nota de crédito** de 2.000 al 21 %, con el motivo *descuento posterior*. Volvé al libro de ventas y fijate que aparece en negativo.
+5. **Cargá una compra.** En **Facturas de compra → Cargar factura de compra**, elegí *Repuestos Ficticios S.A.*, Factura A, punto de venta 5, un número que no exista (por ejemplo 9999), base 5.000 al 21 %. Subí cualquier imagen y tocá **Confirmar**.
+6. **Probá los permisos.** Cambiá el rol a *Gerencia* e intentá hacer una factura: la página no te va a dejar. Cambiá a *Contador* y anulá la compra que cargaste, con el motivo *práctica*.
+7. **Revisá el historial.** En **Cierre e historial**, fijate que todo lo que hiciste quedó registrado.
+8. **Exportá.** En **Libros y posición**, tocá **Exportar a Excel** y abrí el archivo.
+
+> Como lo emitido no se borra, lo que cargues en la práctica va a quedar en la base de prueba. No pasa nada: son datos inventados.
+
+---
+
+## 16. Palabras que conviene conocer
+
+| Palabra | Significa |
 |---|---|
-| `/libro` | Libros de ventas y de compras del mes con totales por alícuota, posición de IVA y botón de exportar a Excel |
-| `/ventas`, `/ventas/nueva`, `/ventas/[id]` | Lista, formulario con cálculo en vivo y detalle con la factura en papel (imprimible) y notas |
-| `/compras`, `/compras/nueva`, `/compras/[id]` | Lista, carga con desglose y subida de imagen, detalle con respaldo y anulación |
-| `/clientes`, `/proveedores` | Datos fiscales, con aviso de lo que falta para poder facturar |
-| `/cierre` | Períodos, controles antes de cerrar e historial |
-
-**Piezas compartidas**
-
-- `lib/supabase.ts` crea el cliente con `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Si faltan, la app muestra un aviso en lugar de romperse.
-- `lib/api.ts` tiene los tipos de cada respuesta, una función por RPC y la clase `ErrorNegocio`. También tiene `subirImagen`, que sube al bucket con la ruta `empresa/AAAA-MM/uuid.ext`, y `urlImagen`, que pide un link firmado válido por 10 minutos.
-- `lib/contexto.tsx` guarda el estado de la app: empresa, rol, tema, catálogos y avisos. Lo guarda en `localStorage` solo como preferencia. También tiene el hook `useDatos`, que carga y recarga datos.
-- `lib/exportar.ts` arma el `.xlsx` con las hojas *Facturas*, *Libro IVA Ventas*, *Libro IVA Compras* y *Posición IVA*, con los números que ya vienen calculados del server.
-- `components/Shell.tsx` tiene el menú lateral, el selector de rol y de empresa, el tema y los avisos.
-- `components/Papel.tsx` dibuja la factura como sale impresa.
-
-Todas las páginas son componentes de cliente (`'use client'`) que llaman a Supabase desde el navegador. Next.js no tiene rutas de API propias: el "backend" es Supabase.
-
----
-
-## 10. Recorrido de una factura de punta a punta
-
-```mermaid
-sequenceDiagram
-  actor P as Persona (Administración)
-  participant C as client (Next.js)
-  participant A as API (public)
-  participant F as fiscal
-
-  P->>C: completa cliente y líneas
-  C->>A: calcular_comprobante(datos)
-  A->>F: calcular_venta
-  F-->>C: ítems, desglose, total (vista previa)
-  P->>C: «Emitir»
-  C->>A: guardar_venta(rol, datos, emitir=true, clave)
-  A->>F: exigir permiso · validar cliente · período abierto
-  A->>F: volver a calcular · guardar · siguiente_numero (FOR UPDATE)
-  A->>F: estado = emitido_sin_cae · registrar en historial
-  A-->>C: comprobante completo
-  C-->>P: factura FA 00001-0000000N
-```
-
-Una compra sigue el mismo camino, con dos diferencias:
-- antes de confirmar, el client sube la imagen a Storage y manda la ruta en `imagen_path`;
-- la base no asigna número: se usa el del proveedor, y se controla que no esté cargado dos veces.
-
----
-
-## 11. Puesta en marcha
-
-### Supabase
-
-Se necesita un proyecto de Supabase. Las migraciones de `server/supabase/migrations/` se aplican en orden, de una de estas formas:
-
-- **SQL Editor:** pegar cada archivo en orden y ejecutarlo.
-- **CLI de Supabase:** `supabase link` y `supabase db push`, desde `server/`.
-- **Integración de GitHub:** Project Settings → Integrations → GitHub, con Working directory = `server`.
-
-> El proyecto de la demo (`owvidccindbpbntxayeq`) ya tiene todo aplicado. Se cargó a mano y en partes, así que el historial de migraciones de Supabase no coincide con los nombres de los archivos. **No activar** la integración de GitHub sobre ese proyecto sin antes alinear ese historial, porque intentaría aplicar todo de nuevo.
-
-Las tablas se ven en el Table Editor eligiendo el esquema **`fiscal`**. En `public` no hay tablas, solo funciones.
-
-### Client local
-
-```bash
-cd client
-cp .env.example .env.local    # completar URL y anon key (Project Settings → API)
-npm install
-npm run dev                   # http://localhost:3000
-npm run typecheck             # chequeo de tipos
-```
-
-### Vercel
-
-El proyecto se importa desde este repo con **Root Directory = `client`**. Hacen falta solo dos variables:
-
-| Variable | Valor |
-|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | `https://<ref>.supabase.co` |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | La anon key (pública) del proyecto |
-
-Las variables con service role, secret o JWT **no hacen falta**, y conviene no tenerlas en el proyecto de Vercel. Cada push a `main` despliega solo.
-
----
-
-## 12. Pruebas
-
-```bash
-server/tests/correr.sh    # necesita Postgres 15+ local; crea la base temporal mp_pruebas
-```
-
-El script hace tres cosas:
-1. Crea una base vacía y le aplica `stub_supabase.sql`, que crea los roles `anon` y `authenticated` y un esquema `storage` mínimo, como tiene Supabase.
-2. Aplica todas las migraciones.
-3. Corre las **73 pruebas** de `pruebas.sql`:
-   - cálculo de líneas, IVA por alícuota, precio final y redondeo;
-   - libros y posición contra la verdad de referencia del Simulador: octubre 2026 de MP da débito **214.755,37**, crédito **107.100,00** y saldo **107.655,37**;
-   - inmutabilidad, numeración, letra, duplicados, períodos cerrados, permisos, historial e idempotencia.
-
----
-
-## 13. Fuera de esta versión
-
-- **Login real** con Supabase Auth, con el rol dentro del token.
-- **CAE de ARCA**: pedido y autorización de facturas electrónicas.
-- Integración con el CRM: presupuestos y órdenes de compra.
-- Conciliación con «Mis Comprobantes» de ARCA.
-- Moneda extranjera en pantalla. La base ya guarda moneda y cotización.
-- Libro diario y asientos contables.
-- Limitación conocida: en la factura en papel, la Factura B muestra los precios netos en lugar de los precios con IVA incluido.
-
----
-
-## 14. Glosario
-
-| Término | Significa |
-|---|---|
-| **ARCA** | La agencia de recaudación (ex AFIP). |
-| **CAE** | Código de autorización que da ARCA a cada factura electrónica. |
-| **Letra A / B / C** | Tipo de factura. A discrimina IVA (entre responsables inscriptos), B no lo discrimina (consumidor final, exento) y C es la que emite un monotributista. |
-| **Alícuota** | Porcentaje de IVA: 21 %, 10,5 %, 27 % o 0 %. |
-| **Débito fiscal** | IVA que se cobró en las ventas. |
-| **Crédito fiscal** | IVA que se pagó en las compras y se puede descontar. |
-| **Posición de IVA** | Débito − crédito: lo que hay que pagar en el mes, o el saldo a favor. |
-| **Percepción** | Impuesto que cobra un proveedor por adelantado. Se informa aparte. |
+| **IVA** | Impuesto al Valor Agregado. Se suma al precio de lo que se vende. |
+| **Alícuota** | El porcentaje de IVA: 21 % (lo normal), 10,5 % o 27 %. |
+| **Neto** | El importe sin IVA. |
+| **Factura A / B / C** | A: entre empresas inscriptas, con el IVA separado. B: a consumidores finales y exentos, con el IVA incluido en el precio. C: la que hacen los monotributistas. |
+| **Débito fiscal** | El IVA que cobramos en las ventas. |
+| **Crédito fiscal** | El IVA que pagamos en las compras y podemos descontar. |
+| **Posición de IVA** | Débito − crédito: lo que hay que pagar en el mes, o lo que queda a favor. |
+| **Percepción** | Un impuesto que nos cobra un proveedor por adelantado. Se informa aparte. |
 | **Nota de crédito / débito** | Comprobante que corrige una factura, restando o sumando. |
-| **Período** | Mes de IVA, `AAAA-MM`. |
-| **RPC** | Llamar a una función de la base desde el front como si fuera un endpoint. |
-| **SECURITY DEFINER** | La función corre con los permisos de su dueño, no con los de quien la llama. |
+| **Borrador** | Factura guardada pero todavía no emitida o confirmada. No cuenta en los libros. |
+| **Período** | Un mes de IVA. |
+| **ARCA** | El organismo de impuestos (ex AFIP). |
+| **CAE** | El código con el que ARCA autoriza una factura electrónica. |
+| **CUIT** | El número de identificación fiscal de una empresa o persona. |
+
+---
+
+*La explicación técnica de cómo está hecho el sistema, para desarrolladores, está en [docs/tecnico.md](docs/tecnico.md).*
