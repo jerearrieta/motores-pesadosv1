@@ -92,6 +92,9 @@ Para facturarle a alguien, primero tiene que estar cargado con sus datos fiscale
 
 1. En el menú, entrá a **Clientes** (o **Proveedores**).
 2. Vas a ver una tarjeta por cada uno. Las tarjetas con **"Faltan datos fiscales"** en rojo no se pueden usar para facturar hasta completarlas.
+   - Los clientes y proveedores son **los mismos para las dos empresas**: un cliente cargado sirve para facturarle desde Mecánica Pesada o desde Rectificaciones Motores Pesados.
+   - Cada tarjeta muestra con un punto de color **con qué empresa ya operó** (🟠 Mecánica Pesada, 🔵 Rectificaciones Motores Pesados). Si todavía no tiene comprobantes, dice *"Sin facturas todavía"* (o *"Sin compras todavía"* en proveedores).
+   - Arriba, las pestañas **Todas / MP / RMP** filtran la lista por empresa. El número de cada pestaña es cuántos hay.
 3. Para uno nuevo, tocá **Nuevo cliente** (o **Nuevo proveedor**). Para completar uno que ya existe, tocá **Completar datos** o **Editar** en su tarjeta.
 4. Completá:
    - **Razón social**: el nombre legal.

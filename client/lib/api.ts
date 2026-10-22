@@ -30,6 +30,8 @@ export interface Contraparte {
   tipo_doc: number | null; numero_doc: string | null; razon_social: string | null; condicion_iva: number | null;
   domicilio: string; localidad: string; provincia: string; telefono: string; email: string; ingresos_brutos: string;
   documento: string; condicion_desc: string | null; faltantes: string[]; completo: boolean;
+  /** Empresas con las que operó (ventas si es cliente, compras si es proveedor) */
+  empresas: string[];
 }
 export interface Importes {
   neto_gravado: number; no_gravado: number; exento: number; iva: number; otros_tributos: number;

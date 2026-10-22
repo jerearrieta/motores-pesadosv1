@@ -189,6 +189,14 @@ exception when others then
   perform pg_temp.igual('SQLSTATE de un conflicto', sqlstate, 'PT409');
 end $$;
 
+-- Empresas con las que operó cada cliente o proveedor
+select pg_temp.igual('Cliente con ventas en MP', (select e->'empresas' from jsonb_array_elements(public.listar_contrapartes('cliente')) e
+  where e->>'id' = '00000000-0000-0000-0000-0000000000c2'), '["MP"]'::jsonb);
+select pg_temp.igual('Cliente sin comprobantes no tiene empresas', (select e->'empresas' from jsonb_array_elements(public.listar_contrapartes('cliente')) e
+  where e->>'id' = '00000000-0000-0000-0000-0000000000c4'), '[]'::jsonb);
+select pg_temp.igual('Proveedor con compras en MP', (select e->'empresas' from jsonb_array_elements(public.listar_contrapartes('proveedor')) e
+  where e->>'id' = '00000000-0000-0000-0000-0000000000a1'), '["MP"]'::jsonb);
+
 -- El rol anon no ve las tablas
 select pg_temp.ok('anon no tiene acceso al esquema fiscal', not has_schema_privilege('anon', 'fiscal', 'usage'));
 select pg_temp.ok('anon puede llamar a la API', has_function_privilege('anon', 'public.libro_iva(text, text, text)', 'execute'));

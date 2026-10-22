@@ -8,12 +8,16 @@ import { Alerta, Cabecera, Campo, Cargando, Modal, SinPermiso } from './ui';
 
 /** Clientes o proveedores con sus datos fiscales (la misma tabla en la base) */
 export function Contrapartes({ tipo }: { tipo: 'cliente' | 'proveedor' }) {
-  const { puede } = useApp();
+  const { puede, catalogos } = useApp();
   const lista = useDatos(() => api.contrapartes(tipo), [tipo]);
   const [editando, setEditando] = useState<Contraparte | 'nuevo' | null>(null);
   const [q, setQ] = useState('');
-  const filas = (lista.datos ?? []).filter((c) => !q || `${c.nombre} ${c.razon_social} ${c.numero_doc}`.toLowerCase().includes(q.toLowerCase()));
+  const [empresa, setEmpresa] = useState<string | null>(null);
+  const buscadas = (lista.datos ?? []).filter((c) => !q || `${c.nombre} ${c.razon_social} ${c.numero_doc}`.toLowerCase().includes(q.toLowerCase()));
+  const filas = buscadas.filter((c) => !empresa || c.empresas.includes(empresa));
   const esCliente = tipo === 'cliente';
+  const empresas = catalogos?.empresas ?? [];
+  const corto = (id: string) => empresas.find((e) => e.id === id)?.nombre_corto ?? id;
 
   return (
     <>
@@ -25,6 +29,14 @@ export function Contrapartes({ tipo }: { tipo: 'cliente' | 'proveedor' }) {
       {!puede('datos_fiscales') && <SinPermiso accion="datos_fiscales" />}
       <div className="filtros">
         <div className="buscar"><Icono n="buscar" /><input placeholder="Buscar por nombre o CUIT" value={q} onChange={(e) => setQ(e.target.value)} /></div>
+        <div className="tabs" title={esCliente ? 'Empresas a las que les compró' : 'Empresas a las que les vendió'}>
+          <button className={!empresa ? 'on' : ''} onClick={() => setEmpresa(null)}>Todas <b>{buscadas.length}</b></button>
+          {empresas.map((e) => (
+            <button key={e.id} className={empresa === e.id ? 'on' : ''} onClick={() => setEmpresa(e.id)} title={e.nombre_corto}>
+              <span className={`punto ${e.id.toLowerCase()}`} /> {e.id} <b>{buscadas.filter((c) => c.empresas.includes(e.id)).length}</b>
+            </button>
+          ))}
+        </div>
         <span className="cuenta">{filas.length} {esCliente ? 'clientes' : 'proveedores'}</span>
       </div>
       {lista.error && <Alerta tipo="error">{lista.error}</Alerta>}
@@ -39,6 +51,12 @@ export function Contrapartes({ tipo }: { tipo: 'cliente' | 'proveedor' }) {
               <div className="cc-p">
                 {c.completo ? <span className="pill verde"><Icono n="tilde" t={12} /> Datos fiscales completos</span> : <span className="pill rojo">Faltan datos fiscales</span>}
                 {c.condicion_desc && <span className="pill">{c.condicion_desc}</span>}
+              </div>
+              <div className="cc-p">
+                {c.empresas.length > 0
+                  ? c.empresas.map((id) => <span key={id} className="pill" title={esCliente ? `Tiene facturas de ${corto(id)}` : `Tiene compras cargadas en ${corto(id)}`}>
+                      <span className={`punto ${id.toLowerCase()}`} /> {corto(id)}</span>)
+                  : <span className="pill">{esCliente ? 'Sin facturas todavía' : 'Sin compras todavía'}</span>}
               </div>
               <div className="cc-d">
                 {c.razon_social && <div>{c.razon_social}</div>}
