@@ -7,18 +7,6 @@ Módulo de facturación e IVA para el CRM de Motores Pesados. Cubre dos empresas
 - ver los **dos libros de IVA** (ventas y compras), la **posición de IVA** del mes y **cerrar el período**;
 - exportar todo a Excel.
 
-**Demo:** https://motores-pesadosv1.vercel.app
-
-> **Ambiente de prueba.** Todos los datos son inventados y los comprobantes no tienen validez fiscal. No se le pide CAE a ARCA.
-
-Este prototipo junta lo que hizo el equipo:
-
-- La base es el **Simulador Libro de IVA**: reglas de cálculo, alícuotas, notas, cierre y roles.
-- Del repo **motores-pesados-contable** sale la forma de trabajar con la API: todo pasa por funciones RPC y el front nunca arma un número ni un importe para guardar.
-- Del Excel **`prototipo-libro-iva.xlsx`** salen las columnas de los libros y de la exportación.
-
----
-
 ## Índice
 
 1. [Cómo está armado](#1-cómo-está-armado)
