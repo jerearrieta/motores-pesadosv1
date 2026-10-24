@@ -18,6 +18,9 @@ interface Contexto {
   avisar: (texto: string, tipo?: 'ok' | 'error') => void;
   avisarError: (e: unknown) => void;
   toasts: Toast[];
+  /** Borradores sin emitir ni confirmar de la empresa elegida (contadores de las pestañas) */
+  borradores: { venta: number; compra: number };
+  recargarBorradores: () => void;
 }
 
 const Ctx = createContext<Contexto | null>(null);
@@ -36,6 +39,7 @@ export function ProveedorApp({ children }: { children: ReactNode }) {
   const [rol, setRolE] = useState<Rol>('administracion');
   const [tema, setTemaE] = useState<'claro' | 'oscuro' | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [borradores, setBorradores] = useState({ venta: 0, compra: 0 });
 
   useEffect(() => {
     setEmpresaE(leer('mp-empresa', 'MP'));
@@ -55,14 +59,22 @@ export function ProveedorApp({ children }: { children: ReactNode }) {
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), tipo === 'error' ? 9000 : 4500);
   }, []);
 
+  const recargarBorradores = useCallback(() => {
+    if (!catalogos) return;
+    const contar = (lista: { estado: string }[]) => lista.filter((c) => c.estado === 'borrador').length;
+    Promise.all([api.comprobantes(empresa, 'venta'), api.comprobantes(empresa, 'compra')])
+      .then(([v, c]) => setBorradores({ venta: contar(v), compra: contar(c) }))
+      .catch(() => { /* el contador no es imprescindible */ });
+  }, [catalogos, empresa]);
+
   const valor = useMemo<Contexto>(() => ({
-    catalogos, errorCarga, empresa, rol, tema, toasts, avisar,
+    catalogos, errorCarga, empresa, rol, tema, toasts, avisar, borradores, recargarBorradores,
     setEmpresa: (e) => { setEmpresaE(e); guardar('mp-empresa', e); },
     setRol: (r) => { setRolE(r); guardar('mp-rol', r); },
     setTema: (t) => { setTemaE(t); guardar('mp-tema', t); },
     puede: (accion) => !!catalogos?.permisos[accion]?.includes(rol),
     avisarError: (e) => avisar(e instanceof ErrorNegocio ? e.detalle : e instanceof Error ? e.message : String(e), 'error'),
-  }), [catalogos, errorCarga, empresa, rol, tema, toasts, avisar]);
+  }), [catalogos, errorCarga, empresa, rol, tema, toasts, avisar, borradores, recargarBorradores]);
 
   return <Ctx.Provider value={valor}>{children}</Ctx.Provider>;
 }

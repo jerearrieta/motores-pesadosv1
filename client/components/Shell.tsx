@@ -2,23 +2,22 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useApp } from '@/lib/contexto';
 import { faltaConfiguracion } from '@/lib/supabase';
 import { Icono } from './Icono';
 import type { Rol } from '@/lib/api';
+import { BANDEJA } from '@/lib/rutas';
 
-const SECCIONES: { titulo: string; items: { href: string; texto: string; icono: string }[] }[] = [
-  { titulo: 'Libro de IVA', items: [
-    { href: '/libro', texto: 'Libros y posición', icono: 'libro' },
-    { href: '/cierre', texto: 'Cierre e historial', icono: 'calendario' },
+// Menú lateral como el del CRM: el módulo no tiene sección propia, vive en pestañas dentro de «Bandeja Tesorería».
+const SECCIONES: { titulo: string; items: { href: string; texto: string; icono: string; borradores?: boolean }[] }[] = [
+  { titulo: 'Mi bandeja', items: [
+    { href: BANDEJA, texto: 'Bandeja Tesorería', icono: 'banco', borradores: true },
   ] },
-  { titulo: 'Facturas', items: [
-    { href: '/ventas', texto: 'Facturas de venta', icono: 'recibo' },
-    { href: '/compras', texto: 'Facturas de compra', icono: 'carro' },
-  ] },
-  { titulo: 'Datos', items: [
+  { titulo: 'Comercial', items: [
     { href: '/clientes', texto: 'Clientes', icono: 'usuarios' },
+  ] },
+  { titulo: 'Sistema', items: [
     { href: '/proveedores', texto: 'Proveedores', icono: 'maletin' },
   ] },
 ];
@@ -27,6 +26,16 @@ export function Shell({ children }: { children: ReactNode }) {
   const ruta = usePathname();
   const [abierto, setAbierto] = useState(false);
   const app = useApp();
+  // Sin tema elegido, la pantalla sigue al del equipo: el botón marcado tiene que coincidir con lo que se ve
+  const [sistemaOscuro, setSistemaOscuro] = useState(false);
+  useEffect(() => {
+    const m = window.matchMedia('(prefers-color-scheme: dark)');
+    setSistemaOscuro(m.matches);
+    const cambio = (e: MediaQueryListEvent) => setSistemaOscuro(e.matches);
+    m.addEventListener('change', cambio);
+    return () => m.removeEventListener('change', cambio);
+  }, []);
+  const oscuro = app.tema ? app.tema === 'oscuro' : sistemaOscuro;
 
   if (faltaConfiguracion) {
     return (
@@ -56,6 +65,9 @@ export function Shell({ children }: { children: ReactNode }) {
                 <Link key={i.href} href={i.href} onClick={() => setAbierto(false)}
                   className={`nav-item${ruta === i.href || ruta.startsWith(i.href + '/') ? ' on' : ''}`}>
                   <Icono n={i.icono} /> {i.texto}
+                  {i.borradores && app.borradores.venta + app.borradores.compra > 0 && (
+                    <span className="nav-n" title="Borradores de facturas de compra y de venta">{app.borradores.venta + app.borradores.compra}</span>
+                  )}
                 </Link>
               ))}
             </div>
@@ -63,8 +75,8 @@ export function Shell({ children }: { children: ReactNode }) {
         </nav>
         <div className="side-pie">
           <div className="tema">
-            <button className={app.tema !== 'oscuro' ? 'on' : ''} onClick={() => app.setTema('claro')}><Icono n="sol" t={16} /> Claro</button>
-            <button className={app.tema === 'oscuro' ? 'on' : ''} onClick={() => app.setTema('oscuro')}><Icono n="luna" t={16} /> Oscuro</button>
+            <button className={!oscuro ? 'on' : ''} onClick={() => app.setTema('claro')}><Icono n="sol" t={16} /> Claro</button>
+            <button className={oscuro ? 'on' : ''} onClick={() => app.setTema('oscuro')}><Icono n="luna" t={16} /> Oscuro</button>
           </div>
           <div className="usuario">
             <div className="avatar">{rolDesc.slice(0, 1) || 'U'}</div>
@@ -86,7 +98,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
         <main className="main">
           {app.errorCarga ? (
-            <div className="alerta error"><Icono n="alerta" /><div><strong>No se pudo conectar con el server.</strong><p>{app.errorCarga}</p></div></div>
+            <div className="alerta error"><Icono n="alerta" /><div><strong>No se pudo conectar con la base de datos.</strong><p>{app.errorCarga}</p></div></div>
           ) : !app.catalogos ? (
             <p className="cargando">Cargando…</p>
           ) : children}

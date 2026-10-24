@@ -2,6 +2,8 @@
 
 Esta guía explica cómo usar la página paso a paso. Está pensada para alguien que la usa por primera vez y no necesita saber nada técnico.
 
+> **Versión final:** las pantallas ahora están dentro de **Bandeja Tesorería** y se sumaron presupuestos de venta, órdenes de compra y conciliación con ARCA. El manual actualizado, con capturas, es [docs/manual-de-carga/manual-de-carga.html](docs/manual-de-carga/manual-de-carga.html). La presentación está en [docs/presentacion-libro-iva](docs/presentacion-libro-iva/presentacion-libro-iva.html). Cómo correrlo en tu PC: [LEEME-COMO-CORRERLO.txt](LEEME-COMO-CORRERLO.txt).
+
 ## Contenido
 
 1. [Para qué sirve](#1-para-qué-sirve)

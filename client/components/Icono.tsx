@@ -29,6 +29,7 @@ const ICONOS: Record<string, string> = {
   basura: '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
   lapiz: '<path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>',
   flechaR: '<path d="M5 12h14M12 5l7 7-7 7"/>',
+  flechaL: '<path d="M19 12H5M12 19l-7-7 7-7"/>',
   chispa: '<path d="m12 3 1.9 5.8a2 2 0 0 0 1.3 1.3L21 12l-5.8 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.8a2 2 0 0 0-1.3-1.3L3 12l5.8-1.9a2 2 0 0 0 1.3-1.3z"/>',
   conciliar: '<path d="M4 7h13l-3-3"/><path d="M20 17H7l3 3"/><path d="M4 7v3M20 17v-3"/>',
   banco: '<path d="M3 22h18M6 18v-7M10 18v-7M14 18v-7M18 18v-7"/><path d="M12 2 3 7v2h18V7z"/>',

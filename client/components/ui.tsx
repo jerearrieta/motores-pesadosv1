@@ -17,7 +17,7 @@ export function Cabecera({ icono, titulo, bajada, children }: { icono: string; t
   );
 }
 
-/** MP / RMP: nunca se mezclan en el libro ni en la posición */
+/** Mecánica Pesada y Rectificaciones Motores Pesados: nunca se mezclan en el libro ni en la posición */
 export function SelectorEmpresa() {
   const { catalogos, empresa, setEmpresa } = useApp();
   return (

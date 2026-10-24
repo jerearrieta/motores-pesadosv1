@@ -6,7 +6,7 @@ export function importe(valor: number | string | null | undefined): string {
   const n = Number(valor ?? 0);
   return fmtImporte.format(Object.is(n, -0) ? 0 : n);
 }
-export const pesos = (valor: number | string | null | undefined) => `$ ${importe(valor)}`;
+export const pesos = (valor: number | string | null | undefined) => (Number(valor) < 0 ? `−$ ${importe(-Number(valor))}` : `$ ${importe(valor)}`);
 
 export function fecha(iso: string | null | undefined): string {
   if (!iso) return '';
@@ -77,3 +77,6 @@ export function montoEnLetras(total: number): string {
   const cent = Number(c % 100n);
   return `Son PESOS: ${entero(c / 100n, false)} CON ${cent === 0 ? 'CERO' : menosDeMil(cent, true)} CENTAVO${cent === 1 ? '' : 'S'}`;
 }
+
+/** «1 venta», «2 ventas»: el número concuerda con la palabra. */
+export const contar = (n: number, singular: string, plural: string) => `${n} ${n === 1 ? singular : plural}`;

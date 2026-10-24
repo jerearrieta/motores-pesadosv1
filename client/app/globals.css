@@ -473,9 +473,48 @@ a { color: inherit; }
 .config-falta { max-width: 640px; margin: 10vh auto; }
 .config-falta pre { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 12px; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; }
 @media print {
-  .side, .banner-prueba, .no-print, .toasts { display: none !important; }
+  .side, .banner-prueba, .no-print, .toasts, .filtros-d { display: none !important; }
   .app { display: block; }
   .main { padding: 0; }
   .papel-wrap { background: none; padding: 0; }
   .papel { border: 0; }
 }
+
+/* ---------- Bandeja Tesorería: pestañas del módulo ---------- */
+.bandeja { min-width: 0; }
+.bandeja-cab { margin-bottom: 14px; }
+.bandeja-pestanas { position: relative; min-width: 0; margin-bottom: 14px; background: var(--panel2); border: 1px solid var(--line); border-radius: 14px; }
+.bandeja-fila { display: flex; align-items: center; gap: 2px; padding: 5px; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
+.bandeja-fila::-webkit-scrollbar { display: none; }
+.bandeja-tab { flex: none; display: inline-flex; align-items: center; gap: 7px; padding: 9px 15px; border-radius: 10px; color: var(--muted); font-weight: 600; font-size: 13.5px; white-space: nowrap; text-decoration: none; }
+.bandeja-tab:hover:not(.apagada):not(.on) { background: var(--panel); color: var(--ink); }
+.bandeja-tab.apagada { opacity: .5; cursor: default; }
+.bandeja-tab.on { background: var(--accent); color: var(--accent-ink); }
+.bandeja-tab b { background: var(--line); color: var(--ink); padding: 0 7px; border-radius: 99px; font-size: 11.5px; }
+.bandeja-tab.on b { background: rgba(0, 0, 0, .28); color: #fff; }
+.bandeja-separador { flex: none; align-self: stretch; width: 1px; margin: 4px 6px; background: var(--line); }
+.bandeja-correr { position: absolute; top: 0; bottom: 0; z-index: 2; display: inline-flex; align-items: center; justify-content: center; width: 44px; border: 0; color: var(--ink); }
+.bandeja-correr.izquierda { left: 0; border-radius: 14px 0 0 14px; background: linear-gradient(to right, var(--panel2) 55%, transparent); justify-content: flex-start; padding-left: 10px; }
+.bandeja-correr.derecha { right: 0; border-radius: 0 14px 14px 0; background: linear-gradient(to left, var(--panel2) 55%, transparent); justify-content: flex-end; padding-right: 10px; }
+.bandeja-sub { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 22px; }
+.bandeja-subtab { display: inline-flex; align-items: center; padding: 7px 15px; border-radius: 99px; border: 1px solid var(--line); background: var(--panel); color: var(--muted); font-weight: 600; font-size: 13px; text-decoration: none; }
+.bandeja-subtab:hover { color: var(--ink); }
+.bandeja-subtab.on { color: var(--ink); border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.tabs a { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 9px; color: var(--muted); font-weight: 600; font-size: 13.5px; text-decoration: none; }
+.tabs a b { background: var(--line); color: var(--ink); padding: 0 7px; border-radius: 99px; font-size: 11.5px; }
+.tabs a.on { background: var(--accent); color: var(--accent-ink); }
+.tabs a.on b { background: rgba(0, 0, 0, .28); color: #fff; }
+.tabs.secciones { max-width: 100%; }
+@media (max-width: 860px) {
+  .sel-empresa { flex-wrap: wrap; max-width: 100%; }
+  .bandeja-sub { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .bandeja-subtab { flex: none; }
+}
+@media print { .bandeja-cab, .bandeja-pestanas, .bandeja-sub, .tabs.secciones, .bandeja .rol-aviso { display: none; } }
+/* Rótulos del comprobante: palabras completas en pantalla, los del modelo de factura en el impreso */
+.solo-impresion { display: none; }
+@media print { .solo-impresion { display: inline; } .solo-pantalla { display: none; } }
+.btn.deshabilitado { opacity: .5; pointer-events: none; }
+/* Emitir desde un presupuesto de venta */
+.presupuestos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 14px; }
+.m-items td.desc { white-space: pre-line; }

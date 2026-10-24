@@ -47,6 +47,7 @@ export interface ComprobanteResumen {
   fecha: string; periodo: string; estado: string; contraparte: string; documento: string;
   neto_gravado: number; iva: number; total: number; imagen_path: string | null; cae: string;
   asociado: string | null; motivo: string; motivo_anulacion: string; periodo_estado: string;
+  orden_compra?: string; categoria_gasto?: string; origen?: 'manual' | 'arca'; en_revision?: boolean;
 }
 export interface Comprobante extends Importes {
   id: string; operacion: Operacion; empresa_id: string; contraparte_id: string; tipo: number; tipo_desc: string; letra: string;
@@ -55,12 +56,30 @@ export interface Comprobante extends Importes {
   vencimiento_pago: string | null; presupuesto: string; orden_compra: string; remito: string; observaciones: string;
   cae: string; vto_cae: string | null; imagen_path: string | null; imagen_nombre: string | null;
   contraparte_tipo_doc: number | null; contraparte_doc: string | null; contraparte_razon: string; contraparte_condicion_iva: number | null;
-  contraparte_domicilio: string; documento: string; condicion_desc: string | null; moneda: string; cotizacion: number;
+  contraparte_domicilio: string; documento: string; origen: 'manual' | 'arca'; codigo_autorizacion: string; origen_moneda: '' | 'USD'; origen_cotizacion: number | null; condicion_desc: string | null; moneda: string; cotizacion: number;
   creado_rol: string; creado_en: string; emitido_en: string | null; confirmado_en: string | null; anulado_en: string | null;
   motivo_anulacion: string; empresa: Empresa; items: Item[]; desglose: Desglose[];
   asociado: { id: string; etiqueta: string; total: number } | null;
   notas: { id: string; etiqueta: string; total: number; estado: string; fecha: string }[];
   nc_disponible: number | null; asociado_id: string | null;
+  categoria_gasto: string; leyenda_cbu_informada: boolean; leyenda_sujeta_retencion: boolean; jurisdiccion_iibb: string;
+  ordenes: { id: string; numero: string; presupuesto: string; importe: number }[];
+  revision_precio: RevisionPrecio | null;
+  /** Solo en la factura B: líneas con el IVA incluido (el centavo de redondeo va a la última) */
+  lineas_iva_incluido: { orden: number; lista: number; unitario: number; total: number }[] | null;
+}
+/** Diferencia de precio contra las órdenes de compra que supera la tolerancia */
+export interface RevisionPrecio { base: number; saldo: number; diferencia: number; tolerancia: number; aprobada_rol: string | null; aprobada_en: string | null }
+export interface OrdenDisponible {
+  id: string; numero: string; presupuesto: string; estado: string; fecha: string; fecha_recepcion: string | null; importe: number;
+  facturado: number; saldo: number; descripcion: string; elegida: boolean;
+}
+export interface CatalogosCompras { categorias: string[]; jurisdicciones: string[]; tolerancia: { porcentaje: number; importe: number; fuente: string; vigente_desde: string } }
+export interface BandejaCompras {
+  ordenes_sin_factura: (Omit<OrdenDisponible, 'elegida'> & { proveedor: string; proveedor_id: string; antiguedad: number | null })[];
+  deuda_sin_documentar: number;
+  facturas_sin_orden: { id: string; etiqueta: string; proveedor: string; fecha: string; total: number; estado: string }[];
+  en_revision: { id: string; etiqueta: string; proveedor: string; base: number; saldo: number; diferencia: number; tolerancia: number }[];
 }
 export interface Calculo { items?: Item[]; desglose: Desglose[]; importes: Importes }
 export interface FilaLibro {
@@ -76,10 +95,41 @@ export interface Posicion {
   perc_iva: number; perc_iibb: number; ventas: number; compras: number;
 }
 export interface Pendientes {
-  items: { nivel: 'ok' | 'revisar' | 'bloquea'; texto: string; cantidad: number; ayuda: string }[];
+  items: { nivel: 'ok' | 'revisar' | 'bloquea' | 'info'; texto: string; cantidad: number; ayuda: string }[];
   bloquea: boolean; revisar: number; estado: string;
 }
 export interface EntradaHistorial { n: number; cuando: string; rol: string; rol_desc: string; empresa_id: string | null; accion: string; entidad: string; ref: string; detalle: string }
+
+export type TipoArchivoArca = 'recibidos' | 'emitidos';
+export type EstadoConciliacion = 'coincide' | 'difiere' | 'falta_sistema' | 'falta_arca' | 'anulada_sistema' | 'en_borrador';
+/** Un comprobante leído del archivo de «Mis Comprobantes» de ARCA */
+export interface ComprobanteArca {
+  fila: number; fecha: string; tipo: number; punto_venta: number; numero: number; cae: string; tipo_doc: number; cuit: string; nombre: string;
+  moneda: 'PES' | 'DOL'; cotizacion: number; neto_gravado: number; no_gravado: number; exento: number; otros_tributos: number; iva: number; total: number;
+  desglose: { alicuota_codigo: number; base: number; iva: number }[] | null; observaciones: string[];
+}
+export interface FilaConciliacion {
+  estado: EstadoConciliacion; etiqueta: string; contraparte: string; cuit: string | null; detalle: string[]; importable?: boolean;
+  arca?: ComprobanteArca; sistema?: { id: string; etiqueta: string; estado: string; fecha: string; total: number; iva: number };
+}
+export interface TotalesConciliacion { neto: number; iva: number; total: number }
+export interface Conciliacion {
+  filas: FilaConciliacion[]; fuera: number; resumen: Record<EstadoConciliacion, number>; tot_arca: TotalesConciliacion; tot_sistema: TotalesConciliacion;
+}
+export interface ResultadoConciliacion {
+  lectura: { errores: string[]; columnas: string[]; detalle_alicuotas: boolean; fila_titulos: number | null; cantidad: number };
+  comprobantes: ComprobanteArca[]; conciliacion: Conciliacion | null;
+}
+
+/** Presupuesto de venta del CRM (espejo mínimo), con lo ya facturado de cada línea */
+export interface Presupuesto {
+  id: string; numero: string; estado: string; estado_texto: string; facturable: boolean; fecha: string; moneda: 'ARS' | 'USD'; cotizacion: number;
+  vendedor: string; descripcion: string; condiciones: string;
+  cliente: { id: string; nombre: string; faltantes: string[]; completo: boolean };
+  importes: Importes;
+  lineas: { id: string; orden: number; codigo: string; descripcion: string; cantidad: number; precio: number; descuento: number; alicuota_codigo: number; neto: number;
+    facturada: { id: string; etiqueta: string; estado: string } | null }[];
+}
 
 /** Error de negocio que devuelve el server: el código decide qué hace el front, el detalle es para la persona. */
 export class ErrorNegocio extends Error {
@@ -121,6 +171,27 @@ export const api = {
   pendientesCierre: (empresa: string, periodo: string) => rpc<Pendientes>('pendientes_cierre', { p_empresa: empresa, p_periodo: periodo }),
   cerrarPeriodo: (rol: Rol, empresa: string, periodo: string) => rpc<Posicion>('cerrar_periodo', { p_rol: rol, p_empresa: empresa, p_periodo: periodo }),
   historial: (rol: Rol, empresa?: string) => rpc<EntradaHistorial[]>('ver_historial', { p_rol: rol, p_empresa: empresa ?? null }),
+  conciliarArca: (rol: Rol, empresa: string, periodo: string, tipo: TipoArchivoArca, archivo: string, texto: string) =>
+    rpc<ResultadoConciliacion>('conciliar_arca', { p_rol: rol, p_empresa: empresa, p_periodo: periodo, p_tipo_archivo: tipo, p_archivo: archivo, p_texto: texto }),
+  importarDesdeArca: (rol: Rol, empresa: string, tipo: TipoArchivoArca, comprobantes: ComprobanteArca[]) =>
+    rpc<{ creados: { id: string; etiqueta: string; estado: string; total: number }[]; errores: string[] }>('importar_desde_arca',
+      { p_rol: rol, p_empresa: empresa, p_tipo_archivo: tipo, p_comprobantes: comprobantes }),
+  confirmarImportadas: (rol: Rol, empresa: string) =>
+    rpc<{ ok: { id: string; etiqueta: string }[]; pendientes: { id: string; etiqueta: string; motivo: string }[] }>('confirmar_importadas', { p_rol: rol, p_empresa: empresa }),
+  archivoEjemploArca: (empresa: string, periodo: string, tipo: TipoArchivoArca) =>
+    rpc<string>('archivo_ejemplo_arca', { p_empresa: empresa, p_periodo: periodo, p_tipo_archivo: tipo }),
+  resumenIvaSimple: (empresa: string, periodo: string) =>
+    rpc<import('./exportar').ResumenIvaSimple>('resumen_iva_simple', { p_empresa: empresa, p_periodo: periodo }),
+  catalogosCompras: () => rpc<CatalogosCompras>('catalogos_compras'),
+  ordenesDisponibles: (empresa: string, proveedor: string, compra?: string | null) =>
+    rpc<OrdenDisponible[]>('ordenes_disponibles', { p_empresa: empresa, p_proveedor: proveedor, p_compra: compra ?? null }),
+  aprobarDiferencia: (rol: Rol, id: string) => rpc<Comprobante>('aprobar_diferencia', { p_rol: rol, p_id: id }),
+  bandejaCompras: (empresa: string) => rpc<BandejaCompras>('bandeja_compras', { p_empresa: empresa, p_proveedor: null }),
+  presupuestos: (empresa: string) => rpc<Presupuesto[]>('presupuestos', { p_empresa: empresa }),
+  prepararLineasPresupuesto: (presupuesto: string, lineas: string[], emitirEn: 'pesos' | 'dolares', cotizacion: string) =>
+    rpc<Record<string, unknown>[]>('preparar_lineas_presupuesto', { p_presupuesto: presupuesto, p_lineas: lineas, p_emitir_en: emitirEn, p_cotizacion: cotizacion }),
+  clientesPorPrioridad: (empresa?: string | null) =>
+    rpc<{ id: string; nombre: string; completo: boolean; presupuestos: number; monto: number; empresas: string[]; activo: boolean }[]>('clientes_por_prioridad', { p_empresa: empresa ?? null }),
   exportarFacturas: (empresa: string, periodo?: string) => rpc<Record<string, unknown>[]>('exportar_facturas', { p_empresa: empresa, p_periodo: periodo ?? null }),
 };
 

@@ -6,7 +6,7 @@ import { Shell } from '@/components/Shell';
 
 export const metadata: Metadata = {
   title: 'Motores Pesados · Libro de IVA',
-  description: 'Prototipo 1.0: facturas de compra y de venta, libros de IVA y posición. Datos inventados.',
+  description: 'Prototipo 1.0: facturas de compra y de venta, libro de IVA y posición. Datos inventados.',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
