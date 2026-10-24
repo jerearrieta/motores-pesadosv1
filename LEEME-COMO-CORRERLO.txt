@@ -1,0 +1,23 @@
+Producto fusionado de facturación e IVA (datos ficticios)
+
+Necesita Node.js 20 o más nuevo. Todo corre en tu PC y no sube nada a ningún lado.
+
+1. Base de prueba en memoria (imita Supabase, con las migraciones y datos ficticios):
+     cd pruebas-pglite
+     npm install
+     node servidor.mjs 54321
+   Para correr las pruebas de la base de datos: node correr.mjs   (deben dar 144 de 144 OK).
+
+2. Aplicación (en otra ventana):
+     cd motores-pesadosv1/client
+     npm install
+     Crear el archivo .env.local con estas dos líneas:
+       NEXT_PUBLIC_SUPABASE_URL=http://localhost:54321
+       NEXT_PUBLIC_SUPABASE_ANON_KEY=clave-local-de-prueba
+     npm run dev
+   Abrir http://localhost:3000 (queda en la Bandeja de Tesorería).
+
+Antes de publicarlo con una base de verdad hay que aplicar las migraciones nuevas de
+motores-pesadosv1/server/supabase/migrations (de 20261023000001 a 20261023000006).
+Las rutas de pruebas-pglite/servidor.mjs y correr.mjs apuntan a C:/Users/mateo/code/motores-pesadosv1/server:
+si lo descomprimís en otra carpeta, cambiá esa ruta en las primeras líneas de los dos archivos.

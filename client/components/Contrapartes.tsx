@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { api, ErrorNegocio, type Contraparte } from '@/lib/api';
 import { useApp, useDatos } from '@/lib/contexto';
+import { pesos } from '@/lib/formato';
 import { Icono } from './Icono';
 import { Alerta, Cabecera, Campo, Cargando, Modal, SinPermiso } from './ui';
 
@@ -14,8 +15,12 @@ export function Contrapartes({ tipo }: { tipo: 'cliente' | 'proveedor' }) {
   const [q, setQ] = useState('');
   const [empresa, setEmpresa] = useState<string | null>(null);
   const buscadas = (lista.datos ?? []).filter((c) => !q || `${c.nombre} ${c.razon_social} ${c.numero_doc}`.toLowerCase().includes(q.toLowerCase()));
-  const filas = buscadas.filter((c) => !empresa || c.empresas.includes(empresa));
   const esCliente = tipo === 'cliente';
+  // Clientes por prioridad (US-021): primero los incompletos, después los de más monto en presupuestos de venta vigentes
+  const prioridad = useDatos(() => (esCliente ? api.clientesPorPrioridad(empresa) : Promise.resolve(null)), [esCliente, empresa]);
+  const orden = new Map((prioridad.datos ?? []).map((x, i) => [x.id, { i, x }]));
+  const filas = buscadas.filter((c) => !empresa || c.empresas.includes(empresa))
+    .sort((a, b) => (orden.get(a.id)?.i ?? 1e9) - (orden.get(b.id)?.i ?? 1e9));
   const empresas = catalogos?.empresas ?? [];
   const corto = (id: string) => empresas.find((e) => e.id === id)?.nombre_corto ?? id;
 
@@ -33,7 +38,7 @@ export function Contrapartes({ tipo }: { tipo: 'cliente' | 'proveedor' }) {
           <button className={!empresa ? 'on' : ''} onClick={() => setEmpresa(null)}>Todas <b>{buscadas.length}</b></button>
           {empresas.map((e) => (
             <button key={e.id} className={empresa === e.id ? 'on' : ''} onClick={() => setEmpresa(e.id)} title={e.nombre_corto}>
-              <span className={`punto ${e.id.toLowerCase()}`} /> {e.id} <b>{buscadas.filter((c) => c.empresas.includes(e.id)).length}</b>
+              <span className={`punto ${e.id.toLowerCase()}`} /> {e.nombre_corto} <b>{buscadas.filter((c) => c.empresas.includes(e.id)).length}</b>
             </button>
           ))}
         </div>
@@ -63,6 +68,9 @@ export function Contrapartes({ tipo }: { tipo: 'cliente' | 'proveedor' }) {
                 {c.numero_doc && <div className="mono">{c.documento}</div>}
                 {[c.domicilio, c.localidad, c.provincia].filter(Boolean).join(', ')}
               </div>
+              {esCliente && (orden.get(c.id)?.x.presupuestos ?? 0) > 0 && (
+                <div className="cc-d">Presupuestos de venta vigentes: {orden.get(c.id)!.x.presupuestos} · {pesos(orden.get(c.id)!.x.monto)}</div>
+              )}
               {c.faltantes.length > 0 && <ul className="faltan">{c.faltantes.map((x) => <li key={x} className="b">{x}</li>)}</ul>}
               {puede('datos_fiscales') && <button className="btn chico" onClick={() => setEditando(c)}><Icono n="lapiz" t={14} /> {c.completo ? 'Editar' : 'Completar datos'}</button>}
             </div>
@@ -105,7 +113,7 @@ function FormContraparte({ tipo, c, onCerrar, onListo }: { tipo: 'cliente' | 'pr
         <Campo etiqueta="Tipo de documento" error={err('tipo_doc')}>
           <select className="in" value={f.tipo_doc} onChange={set('tipo_doc')}>{tiposDoc.map((t) => <option key={t.codigo} value={t.codigo}>{t.descripcion}</option>)}</select>
         </Campo>
-        {f.tipo_doc !== '99' && <Campo etiqueta="Número" error={err('numero_doc')} ayuda="Sin guiones. Usá CUIT inventados, ej. 30-99999992-8">
+        {f.tipo_doc !== '99' && <Campo etiqueta="Número" error={err('numero_doc')} ayuda="Sin guiones. Usá CUIT inventados, por ejemplo 30-99999992-8">
           <input className="in mono" value={f.numero_doc} onChange={set('numero_doc')} /></Campo>}
         <Campo etiqueta="Condición frente al IVA" ancho error={err('condicion_iva')}>
           <select className="in" value={f.condicion_iva} onChange={set('condicion_iva')}>
