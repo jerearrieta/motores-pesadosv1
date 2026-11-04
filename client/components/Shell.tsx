@@ -8,6 +8,7 @@ import { faltaConfiguracion } from '@/lib/supabase';
 import { Icono } from './Icono';
 import type { Rol } from '@/lib/api';
 import { BANDEJA } from '@/lib/rutas';
+import { useSesion } from './Ingreso';
 
 // Menú lateral como el del CRM: el módulo no tiene sección propia, vive en pestañas dentro de «Bandeja Tesorería».
 const SECCIONES: { titulo: string; items: { href: string; texto: string; icono: string; borradores?: boolean }[] }[] = [
@@ -26,6 +27,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const ruta = usePathname();
   const [abierto, setAbierto] = useState(false);
   const app = useApp();
+  const sesion = useSesion();
   // Sin tema elegido, la pantalla sigue al del equipo: el botón marcado tiene que coincidir con lo que se ve
   const [sistemaOscuro, setSistemaOscuro] = useState(false);
   useEffect(() => {
@@ -81,19 +83,20 @@ export function Shell({ children }: { children: ReactNode }) {
           <div className="usuario">
             <div className="avatar">{rolDesc.slice(0, 1) || 'U'}</div>
             <div className="usuario-d">
-              <strong>Usuario de prueba</strong>
+              <strong>{sesion.usuario || 'Usuario de prueba'}</strong>
               <label className="sr" htmlFor="rol">Rol</label>
               <select id="rol" value={app.rol} onChange={(e) => app.setRol(e.target.value as Rol)}>
                 {app.catalogos?.roles.map((r) => <option key={r.id} value={r.id}>{r.descripcion}</option>)}
               </select>
             </div>
           </div>
+          {sesion.usuario && <button className="btn-pie" onClick={sesion.salir}><Icono n="cruz" t={14} /> Salir</button>}
         </div>
       </aside>
       {abierto && <div className="cortina" onClick={() => setAbierto(false)} />}
       <div className="main-col">
         <div className="banner-prueba">
-          <Icono n="alerta" /> <strong>AMBIENTE DE PRUEBA:</strong> los comprobantes no tienen validez fiscal y todos los datos son inventados
+          <Icono n="alerta" /> <strong>AMBIENTE DE PRUEBA:</strong> los comprobantes no tienen validez fiscal. Clientes, proveedores, presupuestos y órdenes de compra vienen de la copia del CRM (confidencial)
           <button className="burger" onClick={() => setAbierto(true)} aria-label="Abrir menú"><Icono n="menu" /></button>
         </div>
         <main className="main">
