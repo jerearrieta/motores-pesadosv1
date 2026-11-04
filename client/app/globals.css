@@ -518,3 +518,11 @@ a { color: inherit; }
 /* Emitir desde un presupuesto de venta */
 .presupuestos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 14px; }
 .m-items td.desc { white-space: pre-line; }
+
+/* Ingreso */
+.ingreso { min-height: 100vh; display: grid; place-items: center; padding: 16px; background: var(--bg, var(--panel2)); }
+.ingreso-caja { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 14px; margin: 0; }
+.ingreso-caja .logo { color: var(--ink); }
+.ingreso-campo { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.ingreso-campo input { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel2); color: var(--ink); font-size: 15px; }
+.ingreso-error { color: var(--rojo); font-size: 13px; }

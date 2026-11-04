@@ -497,7 +497,18 @@ select pg_temp.igual('Proveedor con compras en MP', (select e->'empresas' from j
 
 -- El rol anon no ve las tablas
 select pg_temp.ok('anon no tiene acceso al esquema fiscal', not has_schema_privilege('anon', 'fiscal', 'usage'));
-select pg_temp.ok('anon puede llamar a la API', has_function_privilege('anon', 'public.libro_iva(text, text, text)', 'execute'));
+select pg_temp.ok('anon ya no puede llamar a la API (login del equipo)', not has_function_privilege('anon', 'public.libro_iva(text, text, text)', 'execute'));
+select pg_temp.ok('un usuario con login puede llamar a la API', has_function_privilege('authenticated', 'public.libro_iva(text, text, text)', 'execute'));
+select pg_temp.ok('nadie de afuera puede crear usuarios', not has_function_privilege('authenticated', 'fiscal.crear_usuario(text, text)', 'execute'));
+select pg_temp.ok('nadie de afuera puede cargar desde el CRM', not has_function_privilege('anon', 'fiscal.cargar_desde_crm()', 'execute'));
+-- Control antes de cada pedido: sin usuario de la lista se corta, con usuario de la lista pasa
+insert into fiscal.usuario_permitido (email) values ('prueba@equipo.motorespesados');
+select set_config('request.jwt.claims', '{"role":"anon"}', true);
+select pg_temp.ok('pedido sin usuario del equipo se corta', not public.es_del_equipo());
+select set_config('request.jwt.claims', '{"role":"authenticated","email":"prueba@equipo.motorespesados"}', true);
+select pg_temp.ok('pedido de usuario del equipo pasa', public.es_del_equipo());
+select set_config('request.jwt.claims', '', true);
+delete from fiscal.usuario_permitido where email = 'prueba@equipo.motorespesados';
 
 -- ---------------------------------------------------------------------
 \o
